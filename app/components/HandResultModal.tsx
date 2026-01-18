@@ -142,7 +142,10 @@ export function HandResultModal({
       setPlayerHands(prev => {
         const updated = { ...prev };
         Object.keys(updated).forEach(pos => {
-          updated[pos as Position].isWinner = false; // All opponents lost
+          const playerState = updated[pos as Position];
+          if (playerState) {
+            playerState.isWinner = false; // All opponents lost
+          }
         });
         return updated;
       });
@@ -154,7 +157,10 @@ export function HandResultModal({
         setPlayerHands(prev => {
           const updated = { ...prev };
           Object.keys(updated).forEach(pos => {
-            updated[pos as Position].isWinner = pos === winner;
+            const playerState = updated[pos as Position];
+            if (playerState) {
+              playerState.isWinner = pos === winner;
+            }
           });
           return updated;
         });
@@ -510,7 +516,10 @@ export function HandResultModal({
                           setPlayerHands(prev => {
                             const updated = { ...prev };
                             Object.keys(updated).forEach(pos => {
-                              updated[pos as Position].isWinner = pos === player.position;
+                              const playerState = updated[pos as Position];
+                              if (playerState) {
+                                playerState.isWinner = pos === player.position;
+                              }
                             });
                             return updated;
                           });
