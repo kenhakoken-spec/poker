@@ -145,6 +145,13 @@ export function BoardPicker({ board, onBoardChange, isOpen: externalIsOpen, onOp
 
     onBoardChange(newBoard);
     
+    // リバー（index 4）を入力した場合は、次のカードに移動せず、モーダルを閉じる
+    if (editingIndex === 4) {
+      // リバー入力完了なので、モーダルを閉じる
+      setTimeout(() => setIsOpen(false), 300);
+      return;
+    }
+    
     // 次のカードに自動で移動
     const nextIndex = editingIndex + 1;
     if (nextIndex < 5) {
@@ -164,8 +171,8 @@ export function BoardPicker({ board, onBoardChange, isOpen: externalIsOpen, onOp
       setEditingIndex(null);
     }
     
-    // フロップの3枚目、ターン、リバーを入力したら自動で閉じる
-    if (editingIndex === 2 || editingIndex === 3 || editingIndex === 4) {
+    // フロップの3枚目、ターンを入力したら自動で閉じる（リバーは上で処理済み）
+    if (editingIndex === 2 || editingIndex === 3) {
       setTimeout(() => setIsOpen(false), 300);
     }
   };
@@ -214,10 +221,6 @@ export function BoardPicker({ board, onBoardChange, isOpen: externalIsOpen, onOp
   const getCardLabel = (index: number): string => {
     if (index < 3) return 'Flop';
     if (index === 3) return 'Turn';
-    // index === 4の場合は、リバーカードが入力されていれば「Showdown」、なければ「River」
-    if (index === 4 && localBoardCards[4]) {
-      return 'Showdown';
-    }
     return 'River';
   };
 

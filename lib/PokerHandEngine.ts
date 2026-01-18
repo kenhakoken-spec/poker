@@ -632,18 +632,10 @@ export class PokerHandEngine {
    * ボード入力を確認して次のストリートへ移行
    */
   confirmBoard(): void {
-    if (!this.waitingForBoard) {
-      return;
-    }
-    
-    // prepareNextStreetはadvanceToNextActor()内で既に呼ばれており、
-    // phaseは既に次のストリート（例: Turn -> River）に進んでいる
-    // setPostflopFirstActor()も既に呼ばれている
-    
     // 全員オールインかどうかを確認
     const playersWhoCanAct = this.players.filter(p => !p.folded && p.stack > 0.01);
     
-    // Riverの場合の特別処理
+    // Riverの場合の特別処理（waitingForBoardの状態に関係なく処理する）
     if (this.street.phase === 'River') {
       // Riverのボードカードを選んだ後、全員オールインならハンド完了
       if (playersWhoCanAct.length === 0) {
@@ -657,21 +649,22 @@ export class PokerHandEngine {
       return;
     }
     
-    // Flop/Turnの場合
-    // 全員オールインの場合、setPostflopFirstActor()で既にwaitingForBoard = trueに設定されている
-    // 次のストリート（Turn/River）でも全員オールインなら、ボードカード入力待ちにする必要がある
-    // しかし、prepareNextStreet()は既に呼ばれているので、次のストリートの準備は完了している
-    // setPostflopFirstActor()で既にwaitingForBoardが設定されているので、そのままにしておく
-    
-    // 全員オールインでない場合のみ、waitingForBoardをfalseにする
-    // 全員オールインの場合は、setPostflopFirstActor()でwaitingForBoard = trueに設定されているので、
-    // そのまま維持する（次のストリートのボードカード入力待ち）
-    if (playersWhoCanAct.length > 0) {
-      // アクション可能なプレイヤーがいる場合、waitingForBoardをfalseにしてアクションを開始
-      this.waitingForBoard = false;
+    // Flop/Turnの場合、waitingForBoardがfalseの場合は処理しない
+    if (!this.waitingForBoard) {
+      return;
     }
-    // 全員オールインの場合は、setPostflopFirstActor()で既にwaitingForBoard = trueに設定されているので、
-    // そのまま維持する
+    
+    // 全員オールインの場合、次のストリートへ進む必要がある
+    if (playersWhoCanAct.length === 0) {
+      // 全員オールインの場合、次のストリートへ進む
+      // prepareNextStreet()を呼んで、phaseを次のストリート（Turn -> River）に進める
+      this.prepareNextStreet();
+      // prepareNextStreet()内でsetPostflopFirstActor()が呼ばれ、waitingForBoard = trueに設定される
+      return;
+    }
+    
+    // 全員オールインでない場合、waitingForBoardをfalseにしてアクションを開始
+    this.waitingForBoard = false;
   }
 
   /**

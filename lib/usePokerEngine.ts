@@ -262,12 +262,25 @@ export function usePokerEngineWithState(initialHeroPosition: Position | null = n
     },
     setHeroHand,
     setBoard: (newBoard: BoardState) => {
-      setBoard(newBoard);
-      // ボードが設定されたら、エンジンにボード入力完了を通知
-      // ただし、新しいカードが追加された場合のみ
+      const oldHasRiver = !!board.river;
+      const newHasRiver = !!newBoard.river;
       const oldKeys = Object.keys(board).length;
       const newKeys = Object.keys(newBoard).length;
-      if (newKeys > oldKeys && state.waitingForBoard) {
+      
+      setBoard(newBoard);
+      
+      // リバーが新しく設定された場合は必ずconfirmBoardを呼ぶ（リバー完了後はハンド完了のため）
+      if (!oldHasRiver && newHasRiver) {
+        // リバー入力時は、エンジンのphaseがRiverになっているか確認してからconfirmBoardを呼ぶ
+        // confirmBoard内でRiverの場合の処理が実行される
+        engine.confirmBoard();
+        // 状態を強制的に更新
+        refresh();
+        return;
+      }
+      
+      // その他の場合（フロップ、ターン）は新しいカードが追加された場合のみ
+      if (state.waitingForBoard && newKeys > oldKeys) {
         confirmBoard();
       }
     },

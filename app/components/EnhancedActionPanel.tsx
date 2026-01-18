@@ -46,6 +46,38 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
     return !hasFolded(position);
   };
 
+  // アクティブなプレーヤー数を取得
+  const getActivePlayerCount = (): number => {
+    return players.filter(p => !p.folded).length;
+  };
+
+  // 次の手番のプレイヤーを取得
+  const getNextActor = (): Position | null => {
+    if (!currentActor || currentPhase === 'Preflop') return null;
+    
+    // ヘッズアップ（アクティブなプレーヤーが2人のみ）の場合は、次のアクターを返さない
+    if (getActivePlayerCount() === 2) {
+      return null;
+    }
+    
+    const currentIndex = POSITION_ORDER.indexOf(currentActor);
+    if (currentIndex === -1) return null;
+    
+    // 現在のアクターから次のアクティブなプレーヤーを探す
+    for (let i = 1; i <= 6; i++) {
+      const nextIndex = (currentIndex + i) % 6;
+      const nextPosition = POSITION_ORDER[nextIndex];
+      const player = players.find(p => p.position === nextPosition);
+      
+      // フォールドしていなく、まだアクションしていないプレーヤー
+      if (player && !player.folded && !hasActed(nextPosition)) {
+        return nextPosition;
+      }
+    }
+    
+    return null;
+  };
+
   // 選択されたポジションの利用可能なアクションを取得
   // エンジンのgetAvailableActionsを使用して正確なルールを適用
   const getActionsForPosition = (position: Position): ActionType[] => {
@@ -183,7 +215,8 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
   };
 
   // ボード待ち状態の表示
-  if (waitingForBoard) {
+  // リバーが既に入力されている場合は表示しない（リバー完了後はハンド完了のため）
+  if (waitingForBoard && !state.board.river) {
     return (
       <div className="p-8 text-center">
         <h2 className="text-xl font-bold text-blue-400 mb-4">Waiting for Board</h2>
@@ -265,6 +298,9 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
                 const acted = hasActed(position);
                 const folded = hasFolded(position);
                 const active = isActive(position);
+                const isCurrentActor = position === currentActor;
+                const nextActor = getNextActor();
+                const isNextActor = position === nextActor;
                 
                 return (
                   <button
@@ -273,22 +309,29 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
                     disabled={!isAvailable}
                     className={`
                       relative px-2.5 py-2 rounded-lg font-semibold text-xs transition-all shadow-lg min-h-[44px]
-                      ${isAvailable 
+                      ${folded
+                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20 line-through'
+                        : isAvailable 
                         ? isHero
                           ? 'bg-gradient-to-br from-yellow-600 to-yellow-700 text-white hover:from-yellow-500 hover:to-yellow-600 hover:shadow-xl active:scale-95'
                           : acted
                           ? 'bg-gradient-to-br from-green-700 to-green-800 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-95'
+                          : isCurrentActor && currentPhase !== 'Preflop'
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 hover:shadow-xl active:scale-95 ring-2 ring-blue-400'
+                          : currentPhase !== 'Preflop' && active && !acted
+                          ? 'bg-gray-800 text-gray-200 border border-gray-600'
                           : 'bg-gradient-to-br from-gray-700 to-gray-800 text-white hover:from-gray-600 hover:to-gray-700 hover:shadow-xl active:scale-95'
-                        : folded
-                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20 line-through'
-                        : currentPhase !== 'Preflop' && !active
-                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20'
+                        : currentPhase !== 'Preflop' && active && !acted
+                        ? 'bg-gray-800 text-gray-200 cursor-not-allowed border border-gray-600'
                         : 'bg-gray-900 text-gray-600 cursor-not-allowed opacity-30'
                       }
                     `}
                   >
                     {position}
                     {isHero && <span className="block text-[9px] mt-0.5 opacity-80">Hero</span>}
+                    {isNextActor && currentPhase !== 'Preflop' && !acted && !folded && (
+                      <span className="block text-[8px] text-blue-300 mt-0.5 font-bold">→ Next</span>
+                    )}
                     {acted && !folded && (
                       <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-gray-900"></span>
                     )}
@@ -309,6 +352,9 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
                 const acted = hasActed(position);
                 const folded = hasFolded(position);
                 const active = isActive(position);
+                const isCurrentActor = position === currentActor;
+                const nextActor = getNextActor();
+                const isNextActor = position === nextActor;
                 
                 return (
                   <button
@@ -317,22 +363,29 @@ export function EnhancedActionPanel({ state, onAddAction, onSetHeroPosition, onS
                     disabled={!isAvailable}
                     className={`
                       relative px-2.5 py-2 rounded-lg font-semibold text-xs transition-all shadow-lg min-h-[44px]
-                      ${isAvailable 
+                      ${folded
+                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20 line-through'
+                        : isAvailable 
                         ? isHero
                           ? 'bg-gradient-to-br from-yellow-600 to-yellow-700 text-white hover:from-yellow-500 hover:to-yellow-600 hover:shadow-xl active:scale-95'
                           : acted
                           ? 'bg-gradient-to-br from-green-700 to-green-800 text-white hover:from-green-600 hover:to-green-700 hover:shadow-xl active:scale-95'
+                          : isCurrentActor && currentPhase !== 'Preflop'
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-400 hover:to-blue-500 hover:shadow-xl active:scale-95 ring-2 ring-blue-400'
+                          : currentPhase !== 'Preflop' && active && !acted
+                          ? 'bg-gray-800 text-gray-200 border border-gray-600'
                           : 'bg-gradient-to-br from-gray-700 to-gray-800 text-white hover:from-gray-600 hover:to-gray-700 hover:shadow-xl active:scale-95'
-                        : folded
-                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20 line-through'
-                        : currentPhase !== 'Preflop' && !active
-                        ? 'bg-gray-950 text-gray-700 cursor-not-allowed opacity-20'
+                        : currentPhase !== 'Preflop' && active && !acted
+                        ? 'bg-gray-800 text-gray-200 cursor-not-allowed border border-gray-600'
                         : 'bg-gray-900 text-gray-600 cursor-not-allowed opacity-30'
                       }
                     `}
                   >
                     {position}
                     {isHero && <span className="block text-[9px] mt-0.5 opacity-80">Hero</span>}
+                    {isNextActor && currentPhase !== 'Preflop' && !acted && !folded && (
+                      <span className="block text-[8px] text-blue-300 mt-0.5 font-bold">→ Next</span>
+                    )}
                     {acted && !folded && (
                       <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-gray-900"></span>
                     )}

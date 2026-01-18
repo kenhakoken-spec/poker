@@ -49,10 +49,15 @@ export function EnhancedPokerTable() {
   // waitingForBoardを監視してボード入力モーダルを自動的に開く
   useEffect(() => {
     // waitingForBoard状態になったらモーダルを開く
-    if (state.waitingForBoard && !boardModalOpen) {
+    // ただし、リバーが既に入力されている場合は開かない（リバー完了後はハンド完了のため）
+    if (state.waitingForBoard && !boardModalOpen && !state.board.river) {
       setBoardModalOpen(true);
     }
-  }, [state.waitingForBoard, boardModalOpen]);
+    // リバーが入力されたら、モーダルを閉じる
+    if (state.board.river && boardModalOpen) {
+      setBoardModalOpen(false);
+    }
+  }, [state.waitingForBoard, boardModalOpen, state.board.river]);
 
   // フェーズ変更を追跡
   useEffect(() => {

@@ -59,25 +59,40 @@ export function HandResultModal({
 
   // Initialize player hands state (only for opponents)
   useEffect(() => {
-    const initialHands: Partial<Record<Position, PlayerHandState>> = {};
-    let hasNewPlayers = false;
-    
-    opponentsOnly.forEach(player => {
-      if (!playerHands[player.position]) {
-        initialHands[player.position] = {
-          position: player.position,
-          hand: null,
-          mucked: false,
-          isWinner: false,
-        };
-        hasNewPlayers = true;
+    setPlayerHands(prev => {
+      const initialHands: Partial<Record<Position, PlayerHandState>> = {};
+      let hasNewPlayers = false;
+      
+      opponentsOnly.forEach(player => {
+        if (!prev[player.position]) {
+          initialHands[player.position] = {
+            position: player.position,
+            hand: null,
+            mucked: false,
+            isWinner: false,
+          };
+          hasNewPlayers = true;
+        }
+      });
+      
+      let updated = prev;
+      if (hasNewPlayers) {
+        updated = { ...prev, ...initialHands };
       }
+      
+      // ヘッズアップ時（opponentsOnly.length === 1）の場合、不要なプレーヤーを削除
+      if (opponentsOnly.length === 1) {
+        const opponentPosition = opponentsOnly[0].position;
+        const filtered: Partial<Record<Position, PlayerHandState>> = {};
+        if (updated[opponentPosition]) {
+          filtered[opponentPosition] = updated[opponentPosition];
+        }
+        return filtered;
+      }
+      
+      return updated;
     });
-    
-    if (hasNewPlayers) {
-      setPlayerHands(prev => ({ ...prev, ...initialHands }));
-    }
-  }, [opponentsOnly, playerHands]);
+  }, [opponentsOnly]);
 
   // Get excluded cards (board + hero hand + already selected hands)
   const getExcludedCards = (): string[] => {
@@ -190,7 +205,19 @@ export function HandResultModal({
       } else if (editingCardIndex === 1 && heroHandLocal[0] !== '') {
         // Second card - complete the hand
         setHeroHandLocal([heroHandLocal[0], card] as [string, string]);
-        setCurrentEditingPlayer(null);
+        // ヘッズアップ（相手1人）の場合は次のプレーヤーに移行しない
+        if (opponentsOnly.length === 1) {
+          setCurrentEditingPlayer(null);
+        } else {
+          // 次のプレーヤーがある場合は移行
+          const playerPositions = Object.keys(playerHands) as Position[];
+          if (playerPositions.length > 0) {
+            setCurrentEditingPlayer(playerPositions[0]);
+            setEditingCardIndex(0);
+          } else {
+            setCurrentEditingPlayer(null);
+          }
+        }
       }
       return;
     }
@@ -215,14 +242,20 @@ export function HandResultModal({
         // Editing first card
         playerState.hand = [card, playerState.hand[1]] as [string, string];
         if (playerState.hand[1] !== '') {
-          // Both cards filled, move to next player
-          const playerPositions = Object.keys(playerHands) as Position[];
-          const currentIndex = playerPositions.indexOf(currentEditingPlayer);
-          if (currentIndex < playerPositions.length - 1) {
-            setCurrentEditingPlayer(playerPositions[currentIndex + 1]);
-            setEditingCardIndex(0);
-          } else {
+          // Both cards filled
+          // ヘッズアップ（相手1人）の場合は次のプレーヤーに移行しない
+          if (opponentsOnly.length === 1) {
             setCurrentEditingPlayer(null);
+          } else {
+            // Move to next player or finish (opponentsOnlyのプレーヤーのみを対象)
+            const opponentPositions = opponentsOnly.map(p => p.position);
+            const currentIndex = opponentPositions.indexOf(currentEditingPlayer);
+            if (currentIndex < opponentPositions.length - 1) {
+              setCurrentEditingPlayer(opponentPositions[currentIndex + 1]);
+              setEditingCardIndex(0);
+            } else {
+              setCurrentEditingPlayer(null);
+            }
           }
         } else {
           setEditingCardIndex(1);
@@ -230,14 +263,20 @@ export function HandResultModal({
       } else if (editingCardIndex === 1 && playerState.hand[0] !== '') {
         // Second card - complete the hand
         playerState.hand = [playerState.hand[0], card] as [string, string];
-        // Move to next player or finish
-        const playerPositions = Object.keys(playerHands) as Position[];
-        const currentIndex = playerPositions.indexOf(currentEditingPlayer);
-        if (currentIndex < playerPositions.length - 1) {
-          setCurrentEditingPlayer(playerPositions[currentIndex + 1]);
-          setEditingCardIndex(0);
-        } else {
+        // ヘッズアップ（相手1人）の場合は次のプレーヤーに移行しない
+        // または、opponentsOnlyに含まれるプレーヤーのみを考慮する
+        if (opponentsOnly.length === 1) {
           setCurrentEditingPlayer(null);
+        } else {
+          // Move to next player or finish (opponentsOnlyのプレーヤーのみを対象)
+          const opponentPositions = opponentsOnly.map(p => p.position);
+          const currentIndex = opponentPositions.indexOf(currentEditingPlayer);
+          if (currentIndex < opponentPositions.length - 1) {
+            setCurrentEditingPlayer(opponentPositions[currentIndex + 1]);
+            setEditingCardIndex(0);
+          } else {
+            setCurrentEditingPlayer(null);
+          }
         }
       }
       
@@ -284,10 +323,46 @@ export function HandResultModal({
 
   // Check if all hands are complete (either filled or mucked)
   const allHandsComplete = useMemo(() => {
-    return Object.values(playerHands).every(p => 
-      p.mucked || (p.hand && p.hand[0] !== '' && p.hand[1] !== '')
-    );
-  }, [playerHands]);
+    // ヒーローのハンドが完成しているかチェック（フォールドしていない場合）
+    let heroHandComplete = false;
+    if (heroFolded) {
+      heroHandComplete = true;
+    } else {
+      // heroHandLocalを優先的に使用、なければheroHandを使用
+      const currentHeroHand = heroHandLocal || heroHand;
+      if (currentHeroHand && Array.isArray(currentHeroHand) && currentHeroHand.length === 2) {
+        const card1 = currentHeroHand[0];
+        const card2 = currentHeroHand[1];
+        // 両方のカードが存在し、空文字列でないことを確認
+        heroHandComplete = !!(card1 && card2 && String(card1).trim() !== '' && String(card2).trim() !== '');
+      }
+    }
+    
+    // 相手プレーヤーのハンドが全て完成しているかチェック（マックされたか、ハンドが入力されている）
+    let opponentHandsComplete = true;
+    if (opponentsOnly.length > 0) {
+      opponentHandsComplete = opponentsOnly.every(player => {
+        const playerState = playerHands[player.position];
+        if (!playerState) {
+          return false; // playerStateが存在しない場合は未完成
+        }
+        if (playerState.mucked) {
+          return true; // マックされた場合は完成
+        }
+        // ハンドが入力されている場合
+        const hand = playerState.hand;
+        if (hand && Array.isArray(hand) && hand.length === 2) {
+          const card1 = hand[0];
+          const card2 = hand[1];
+          return !!(card1 && card2 && String(card1).trim() !== '' && String(card2).trim() !== '');
+        }
+        return false;
+      });
+    }
+    
+    const result = heroHandComplete && opponentHandsComplete;
+    return result;
+  }, [playerHands, heroHandLocal, heroHand, heroFolded, opponentsOnly]);
 
   // Submit result
   const handleSubmit = () => {
@@ -604,7 +679,7 @@ export function HandResultModal({
                 onClick={handleSubmit}
                 className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-bold transition-all"
               >
-                {opponentsOnly.length === 1 ? 'Finish' : (allHandsComplete ? 'Finish' : 'Skip & Finish')}
+                {allHandsComplete ? 'Finish' : 'Skip & Finish'}
               </button>
             )}
           </div>
